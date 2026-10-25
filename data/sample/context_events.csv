@@ -1,0 +1,38 @@
+event_id,device_id,event_timestamp,event_type,event_text
+0,DEV-01,2026-01-12 03:45:00,fertilizing,Diluted seaweed feed
+1,DEV-01,2026-01-08 14:00:00,fertilizing,Liquid feed
+2,DEV-01,2026-01-02 22:30:00,fertilizing,Diluted seaweed feed
+3,DEV-01,2026-01-09 04:00:00,fertilizing,Diluted seaweed feed
+4,DEV-02,2026-01-14 07:45:00,fertilizing,Liquid feed
+5,DEV-02,2026-01-13 11:30:00,watering,Gave it a good soak
+6,DEV-02,2026-01-05 01:15:00,fertilizing,Liquid feed
+7,DEV-02,2026-01-04 18:00:00,watering,Quick water
+8,DEV-02,2026-01-12 20:45:00,watering,Gave it a good soak
+9,DEV-03,2026-01-07 11:15:00,watering,Watered ~200ml
+10,DEV-03,2026-01-10 09:45:00,watering,Gave it a good soak
+11,DEV-03,2026-01-14 05:30:00,watering,Quick water
+12,DEV-03,2026-01-10 08:15:00,watering,Watered ~200ml
+13,DEV-03,2026-01-13 20:30:00,watering,Gave it a good soak
+14,DEV-04,2026-01-03 05:30:00,fertilizing,Liquid feed
+15,DEV-04,2026-01-14 22:45:00,watering,Watered ~200ml
+16,DEV-04,2026-01-01 06:30:00,watering,Gave it a good soak
+17,DEV-04,2026-01-14 16:45:00,watering,Quick water
+18,DEV-05,2026-01-05 07:45:00,watering,Gave it a good soak
+19,DEV-05,2026-01-07 18:15:00,watering,Watered ~200ml
+20,DEV-05,2026-01-10 02:15:00,watering,Gave it a good soak
+21,DEV-05,2026-01-12 03:45:00,fertilizing,Liquid feed
+22,DEV-06,2026-01-01 10:00:00,watering,Gave it a good soak
+23,DEV-06,2026-01-11 18:45:00,fertilizing,Liquid feed
+24,DEV-06,2026-01-07 14:45:00,watering,Quick water
+25,DEV-07,2026-01-08 16:30:00,fertilizing,Liquid feed
+26,DEV-07,2026-01-12 21:00:00,watering,Gave it a good soak
+27,DEV-07,2026-01-14 09:30:00,fertilizing,Diluted seaweed feed
+28,DEV-07,2026-01-14 08:30:00,watering,Watered ~200ml
+29,DEV-07,2026-01-13 06:00:00,fertilizing,Liquid feed
+30,DEV-07,2026-01-12 05:45:00,watering,Quick water
+31,DEV-08,2026-01-09 07:30:00,fertilizing,Liquid feed
+32,DEV-08,2026-01-06 11:45:00,watering,Quick water
+33,DEV-08,2026-01-01 22:15:00,watering,Quick water
+34,DEV-08,2026-01-08 01:15:00,watering,Watered ~200ml
+35,DEV-08,2026-01-02 15:15:00,watering,Quick water
+36,DEV-08,2026-01-01 11:15:00,watering,Watered ~200ml
