@@ -58,11 +58,14 @@ def generate_readings():
                 if device == "DEV-07" and sensor_type == "soil_moisture":
                     timestamp_str = ts.strftime("%d/%m/%Y %H:%M")  # different format, no seconds
 
-                # --- Issue 2: DEV-02 reports soil_temp in Fahrenheit but declares unit "C" ---
-                # (unit MISLABELLED, not just a different scale -- a real-world labelling bug)
+                # --- Issue 2: DEV-02's soil_temp unit field is mislabelled as "F" ---
+                # The VALUE is a normal Celsius reading; the UNIT COLUMN is wrong.
+                # This is what a literal unit-mismatch check is meant to catch:
+                # a declared unit that disagrees with the contract's expected unit
+                # for this sensor_type, independent of whether the number itself
+                # looks plausible.
                 if device == "DEV-02" and sensor_type == "soil_temp":
-                    value = value * 9 / 5 + 32  # convert to F magnitude
-                    unit = "C"  # but still declared as C -- the actual bug
+                    unit = "F"
 
                 # --- Issue 6: DEV-06 soil_moisture sticks at one exact value for a long run ---
                 if device == "DEV-06" and sensor_type == "soil_moisture" and step >= N_STEPS // 2:
