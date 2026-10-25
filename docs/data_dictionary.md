@@ -62,3 +62,23 @@ guess baked into code.
 5. **A stuck sensor** on `DEV-06` (identical value repeated for a long run): tests the flatline/run-length detector.
 6. **A clean 2-day gap** on `DEV-04`: tests gap detection against the declared sampling interval, distinct from a null value.
 7. **A plausible-but-unusual drift** on `DEV-03` (EC rising smoothly over several days): intentionally **not** auto-corrected; must surface as a flagged anomaly for manual review, exercising the "don't silently resolve ambiguity" rule end to end.
+
+## Deliberately injected event-response signal (not a data-quality issue, an analytical one)
+
+To give `transform.build_gold_event_response` a real signal to find, rather than pure noise,
+every `watering` event produces a small, decaying bump in that device's `soil_moisture`
+readings for roughly 2 hours afterward, and every `fertilizing` event produces a slower,
+rising bump in `ec` readings over several hours. Both are implemented in
+`scripts/generate_sample_data.py` (`event_response_delta`).
+
+This was deliberately sized to be **subtle**, comparable to existing sensor noise, not an
+obvious step change, so a naive before/after mean doesn't catch it on every single event.
+**Known asymmetry, found during verification, left as-is rather than tuned away:** the
+watering signal came out genuinely subtle (around 61% of events show a positive delta), but
+the fertilizing signal turned out stronger than intended (100% of events show a positive
+delta). Traced to a real signal-to-noise difference: the fertilizing peak (around 120 uS/cm)
+is about 2x its background noise std (60), while the watering peak (around 2.5% VWC) is
+smaller than its own noise std (3), and averaging over a wider post-event window smooths out
+more of the EC noise. This is a legitimate, explainable difference in detectability between
+the two event types, not a bug, and it was kept rather than artificially re-tuned to force
+symmetry.

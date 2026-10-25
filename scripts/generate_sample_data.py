@@ -40,17 +40,89 @@ def iso(ts: datetime) -> str:
     return ts.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def generate_readings():
+# --- Event-response model ---
+# A deliberately SUBTLE, not obvious, effect: comparable in size to the
+# existing sensor noise, so a naive single-event before/after check can
+# plausibly miss it on any given event, the same "small real signal
+# riding on noise" property as the real-world case this project is
+# modelled on. The signal is real and should show up in AGGREGATE across
+# many events, not necessarily on every individual one.
+WATERING_PEAK_MEAN, WATERING_PEAK_STD = 2.5, 0.6   # soil_moisture, % VWC
+WATERING_DECAY_TAU_HOURS = 0.6
+WATERING_LOOKBACK_HOURS = 3
+
+FERTILIZING_PEAK_MEAN, FERTILIZING_PEAK_STD = 120, 25  # ec, uS/cm
+FERTILIZING_RISE_TAU_HOURS = 2.0
+FERTILIZING_LOOKBACK_HOURS = 8
+
+
+def _most_recent_event(device_events, current_ts, event_type, max_lookback_hours):
+    """
+    Finds the closest PRIOR event of the given type for this device,
+    within the lookback window. Only the single most recent qualifying
+    event is used, not a sum over several, to keep the response model
+    simple and avoid double-counting overlapping events.
+    """
+    best = None
+    for ev_ts, ev_type in device_events:
+        if ev_type != event_type or ev_ts > current_ts:
+            continue
+        elapsed_hours = (current_ts - ev_ts).total_seconds() / 3600
+        if elapsed_hours > max_lookback_hours:
+            continue
+        if best is None or ev_ts > best:
+            best = ev_ts
+    if best is None:
+        return None
+    return (current_ts - best).total_seconds() / 3600
+
+
+def event_response_delta(device_events, current_ts, sensor_type):
+    """
+    Returns an additive delta to apply to a reading, based on the most
+    recent relevant prior event, or 0.0 if none qualifies. Deterministic
+    given the shared `random` module state, so still fully reproducible
+    under the fixed seed.
+    """
+    if sensor_type == "soil_moisture":
+        elapsed = _most_recent_event(device_events, current_ts, "watering", WATERING_LOOKBACK_HOURS)
+        if elapsed is None:
+            return 0.0
+        peak = random.gauss(WATERING_PEAK_MEAN, WATERING_PEAK_STD)
+        return peak * pow(2.71828, -elapsed / WATERING_DECAY_TAU_HOURS)
+
+    if sensor_type == "ec":
+        elapsed = _most_recent_event(device_events, current_ts, "fertilizing", FERTILIZING_LOOKBACK_HOURS)
+        if elapsed is None:
+            return 0.0
+        peak = random.gauss(FERTILIZING_PEAK_MEAN, FERTILIZING_PEAK_STD)
+        return peak * (1 - pow(2.71828, -elapsed / FERTILIZING_RISE_TAU_HOURS))
+
+    return 0.0
+
+
+def generate_readings(events):
+    # Index events per device once, instead of re-filtering the full
+    # events list on every single reading, that would be O(readings x
+    # events) unnecessarily; this is a cheap one-time grouping instead.
+    events_by_device = {}
+    for e in events:
+        events_by_device.setdefault(e["device_id"], []).append(
+            (datetime.strptime(e["event_timestamp"], "%Y-%m-%d %H:%M:%S"), e["event_type"])
+        )
+
     rows = []
     for device in DEVICES:
         # each device gets its own slight baseline offset so devices aren't identical
         device_offset = {k: random.uniform(-3, 3) for k in SENSOR_TYPES}
+        device_events = events_by_device.get(device, [])
 
         for step in range(N_STEPS):
             ts = START + timedelta(minutes=INTERVAL_MIN * step)
 
             for sensor_type, cfg in SENSOR_TYPES.items():
                 value = cfg["base"] + device_offset[sensor_type] + random.gauss(0, cfg["noise"])
+                value += event_response_delta(device_events, ts, sensor_type)
                 unit = cfg["unit"]
                 timestamp_str = iso(ts)
 
@@ -129,8 +201,8 @@ def generate_context_events():
 
 
 def main():
-    readings = generate_readings()
     events = generate_context_events()
+    readings = generate_readings(events)
 
     readings_path = OUT_DIR / "sensor_readings.csv"
     with open(readings_path, "w", newline="") as f:
