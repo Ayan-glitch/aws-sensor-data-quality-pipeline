@@ -25,17 +25,23 @@ from . import config
 
 def _try_parse_timestamp(raw: str):
     """
-    Try each configured format in order. Returns a parsed Timestamp on
-    success, or None if every format fails. None, not an exception, so
-    the caller can vectorize this across a whole column without a
-    try/except per row.
+    Try each configured format in order. Returns (parsed_timestamp, used_fallback)
+    on success, or (None, None) if every format fails.
+
+    used_fallback is False only when the FIRST (primary, documented) format
+    matched. Any later format matching counts as a deterministic correction,
+    not a silent pass-through, because the row's timestamp had to be
+    reinterpreted away from the documented contract to be understood at all.
+    This is what lets main.py report an honest "corrected record count"
+    instead of that correction happening invisibly.
     """
-    for fmt in config.TIMESTAMP_FORMATS:
+    for i, fmt in enumerate(config.TIMESTAMP_FORMATS):
         try:
-            return pd.Timestamp(datetime.strptime(raw.strip(), fmt))
+            parsed = pd.Timestamp(datetime.strptime(raw.strip(), fmt))
+            return parsed, (i > 0)
         except (ValueError, AttributeError):
             continue
-    return None
+    return None, None
 
 
 def ingest_readings(source_path: Path) -> dict:
@@ -61,12 +67,15 @@ def ingest_readings(source_path: Path) -> dict:
     raw["source_file"] = source_path.name
     raw["ingested_at"] = pd.Timestamp(datetime.now(timezone.utc))
 
-    parsed_ts = raw["timestamp"].apply(_try_parse_timestamp)
+    parse_results = raw["timestamp"].apply(_try_parse_timestamp)
+    parsed_ts = parse_results.apply(lambda r: r[0])
+    used_fallback = parse_results.apply(lambda r: r[1])
     is_parsed = parsed_ts.notna()
 
     parsed = raw[is_parsed].copy()
     parsed["timestamp_raw"] = parsed["timestamp"]  # preserve the original string
     parsed["timestamp"] = parsed_ts[is_parsed]
+    parsed["timestamp_format_corrected"] = used_fallback[is_parsed]
 
     quarantined = raw[~is_parsed].copy()
     quarantined["quarantine_reason"] = "unparseable_timestamp"

@@ -15,7 +15,7 @@ been implemented and verified yet.
 |---|---|---|
 | 0 | Workspace inspection, architecture decisions | ✅ Done |
 | 1 | Data contract, deterministic synthetic dataset | ✅ Done |
-| 2 | Local ingestion + validation + transformation | ⬜ Not started |
+| 2 | Local ingestion + validation + transformation | ✅ Done, verified end to end |
 | 3 | Automated tests + data-quality reporting | ⬜ Not started |
 | 4 | Local analytics (DuckDB) | ⬜ Not started |
 | 5 | Full documentation + reproducibility pass | ⬜ Not started |
@@ -47,27 +47,30 @@ issues rather than against an opaque dataset.
   not the point of the project. Every cloud resource is explicitly costed and
   approved before it's created, and none has been created yet.
 
-## Quick start (once Phase 2 lands)
+## Quick start
 
 ```bash
 # 1. Clone and set up
 git clone https://github.com/<your-username>/aws-sensor-data-quality-pipeline.git
 cd aws-sensor-data-quality-pipeline
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt   # not created yet -- Phase 2
+pip install -r requirements.txt
 
 # 2. Generate the synthetic sample data (deterministic -- safe to re-run anytime)
 python scripts/generate_sample_data.py
 
-# 3. Run the pipeline (not implemented yet)
+# 3. Run the full pipeline: ingest -> validate -> transform -> write bronze/silver/gold
 python scripts/run_local_pipeline.py
 
-# 4. Run tests (not implemented yet)
+# 4. Run tests (not implemented yet -- Phase 3)
 pytest
 ```
 
-Right now, only step 2 actually works. This section will be updated as each
-subsequent step is implemented and verified.
+Steps 1 through 3 are implemented and verified, run end to end on a clean machine,
+not just in development. Step 3 prints a full reconciliation report (original,
+quarantined, corrected, duplicate, and valid record counts) and writes real Parquet
+files under `output/bronze/`, `output/silver/`, and `output/gold/`. Step 4 (automated
+tests) is still Phase 3, not yet built, `pytest` will currently find nothing to run.
 
 ## Repository structure
 
