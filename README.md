@@ -16,7 +16,7 @@ been implemented and verified yet.
 | 0 | Workspace inspection, architecture decisions | ✅ Done |
 | 1 | Data contract, deterministic synthetic dataset | ✅ Done |
 | 2 | Local ingestion + validation + transformation | ✅ Done, verified end to end |
-| 3 | Automated tests + data-quality reporting | ⬜ Not started |
+| 3 | Automated tests + data-quality reporting | ✅ Done for implemented rules (see Known gaps) |
 | 4 | Local analytics (DuckDB) | ⬜ Not started |
 | 5 | Full documentation + reproducibility pass | ⬜ Not started |
 | 6 | AWS architecture design + cost review | ⬜ Not started |
@@ -62,15 +62,30 @@ python scripts/generate_sample_data.py
 # 3. Run the full pipeline: ingest -> validate -> transform -> write bronze/silver/gold
 python scripts/run_local_pipeline.py
 
-# 4. Run tests (not implemented yet -- Phase 3)
-pytest
+# 4. Run the test suite (24 tests: unit + end-to-end integration)
+pytest -v
 ```
 
 Steps 1 through 3 are implemented and verified, run end to end on a clean machine,
 not just in development. Step 3 prints a full reconciliation report (original,
 quarantined, corrected, duplicate, and valid record counts) and writes real Parquet
-files under `output/bronze/`, `output/silver/`, and `output/gold/`. Step 4 (automated
-tests) is still Phase 3, not yet built, `pytest` will currently find nothing to run.
+files under `output/bronze/`, `output/silver/`, and `output/gold/`. Step 4 runs 24 tests,
+verified on a local Windows machine and on GitHub Actions (Linux). The same suite runs
+automatically on every push via `.github/workflows/tests.yml`.
+
+## Known gaps and open issues
+
+Stated plainly so the repo never claims more than the code does.
+
+- **Gap detection is not implemented.** The synthetic data deliberately contains a clean
+  2-day outage on `DEV-04`, but no validation rule detects missing time intervals yet.
+- **The EC drift on `DEV-03` is not flagged.** It stays inside the configured plausible
+  range, so no current rule marks it for review.
+- **Null readings are not flagged.** A `value` that fails numeric casting becomes NaN and
+  passes every range check silently.
+- **Test warnings.** `pytest` passes but reports a NumPy `DeprecationWarning` ("generic
+  unit for timedelta") from `transform.py`. It reproduces on both Windows and Linux with
+  pandas 2.3.3, and is under investigation. It does not affect results.
 
 ## Repository structure
 
@@ -82,9 +97,9 @@ tests) is still Phase 3, not yet built, `pytest` will currently find nothing to 
 ├── scripts/              # generate_sample_data.py, run_local_pipeline.py
 ├── src/sensor_pipeline/   # Core pipeline code (Phase 2+)
 ├── sql/                   # Analytical queries (Phase 4+)
-├── tests/                 # Unit + integration tests (Phase 3+)
+├── tests/                 # Unit + integration tests
 ├── aws/                   # Optional AWS integration (Phase 6+, cost-gated)
-└── .github/workflows/      # CI (Phase 3+)
+└── .github/workflows/      # CI: installs dependencies, generates data, runs pytest
 ```
 
 ## Documentation
