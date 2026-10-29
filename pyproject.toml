@@ -1,0 +1,8 @@
+[project]
+name = "aws-sensor-data-quality-pipeline"
+version = "0.1.0"
+description = "A local-first IoT sensor data quality and feature pipeline, with an optional cost-gated AWS path."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -98,6 +98,13 @@ def build_gold_event_response(
         if sensor_type is None:
             continue
 
+        # itertuples() hands back a raw numpy.datetime64 with no explicit
+        # time resolution ("generic unit"), not a proper pandas Timestamp.
+        # Arithmetic directly on that triggers a deprecation warning (and
+        # will eventually error outright), so wrap it in pd.Timestamp
+        # first to get well-defined, versioned-correctly datetime math.
+        event_ts = pd.Timestamp(event.event_timestamp)
+
         device_data = silver[
             (silver["device_id"] == event.device_id)
             & (silver["sensor_type"] == sensor_type)
@@ -106,13 +113,13 @@ def build_gold_event_response(
 
         before = device_data[
             device_data["timestamp"].between(
-                event.event_timestamp - pd.Timedelta(before_window), event.event_timestamp
+                event_ts - pd.Timedelta(before_window), event_ts
             )
         ]["value"].mean()
 
         after = device_data[
             device_data["timestamp"].between(
-                event.event_timestamp, event.event_timestamp + pd.Timedelta(after_window)
+                event_ts, event_ts + pd.Timedelta(after_window)
             )
         ]["value"].mean()
 
@@ -120,7 +127,7 @@ def build_gold_event_response(
             "event_id": event.event_id,
             "device_id": event.device_id,
             "event_type": event.event_type,
-            "event_timestamp": event.event_timestamp,
+            "event_timestamp": event_ts,
             "sensor_type": sensor_type,
             "mean_before": before,
             "mean_after": after,
