@@ -1,6 +1,4 @@
-@"
 pandas>=2.2,<3.0
 pyarrow>=26.0,<27.0
 duckdb>=1.5,<2.0
 pytest>=8.4,<9.0
-"@ | Set-Content -Path requirements.txt -Encoding utf8
