@@ -38,7 +38,7 @@ authoritative):**
 A reading outside the **hard physical bound** is an invalid measurement (quarantined
 value, flagged, original preserved). A reading outside the **plausible range** but inside
 the hard bound is an anomaly for review, not an automatic rejection. This is the
-duplicate-vs-anomaly distinction from the FYTA-style analysis applied generically here.
+duplicate-vs-anomaly distinction commonly used in sensor data-quality work, applied generically here.
 
 **Expected sampling interval:** 15 minutes, per device. Used by the gap-detection logic
 in Stage 3D. This is declared, not inferred, so it's explicit and auditable rather than a

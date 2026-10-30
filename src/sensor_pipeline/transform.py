@@ -19,6 +19,8 @@ layers described in README.md.
           directly answering the kind of question a modelling team would
           actually ask this data.
 """
+from datetime import timedelta
+
 import pandas as pd
 
 from . import config
@@ -77,33 +79,34 @@ def build_gold_quality_summary(silver: pd.DataFrame) -> pd.DataFrame:
 def build_gold_event_response(
     silver: pd.DataFrame,
     events: pd.DataFrame,
-    before_window="2h",
-    after_window="2h",
+    before_window: timedelta = timedelta(hours=2),
+    after_window: timedelta = timedelta(hours=2),
 ) -> pd.DataFrame:
     """
     For every logged event, compares the mean sensor value in the window
     before vs. after the event, for the sensor_type that event SHOULD
     plausibly affect (watering -> soil_moisture, fertilizing -> ec).
 
-    This mirrors the original FYTA-style watering/fertilizing analysis:
-    deliberately a simple before/after mean here, not a detrended check,
-    documented as a known limitation (see docs/design_decisions.md),
-    not hidden.
+    This is a common real-world response check: deliberately a simple
+    before/after mean, not a detrended one. Known limitation: a small
+    response riding on a larger background trend (for example soil drying
+    out) can be missed or even reversed by a plain before/after mean.
     """
     relevant_sensor = {"watering": "soil_moisture", "fertilizing": "ec"}
     rows = []
+
+    # Windows are passed as datetime.timedelta objects, not strings like "2h".
+    # On pandas 2.3.x with NumPy 2.5.x, pd.Timedelta("2h") (and the hours=2
+    # keyword form) emit a NumPy 'generic unit' DeprecationWarning from inside
+    # pandas' own parser. Wrapping a timedelta object avoids that code path.
+    # Converted once here rather than on every event.
+    before_td = pd.Timedelta(before_window)
+    after_td = pd.Timedelta(after_window)
 
     for event in events.itertuples():
         sensor_type = relevant_sensor.get(event.event_type)
         if sensor_type is None:
             continue
-
-        # itertuples() hands back a raw numpy.datetime64 with no explicit
-        # time resolution ("generic unit"), not a proper pandas Timestamp.
-        # Arithmetic directly on that triggers a deprecation warning (and
-        # will eventually error outright), so wrap it in pd.Timestamp
-        # first to get well-defined, versioned-correctly datetime math.
-        event_ts = pd.Timestamp(event.event_timestamp)
 
         device_data = silver[
             (silver["device_id"] == event.device_id)
@@ -113,13 +116,13 @@ def build_gold_event_response(
 
         before = device_data[
             device_data["timestamp"].between(
-                event_ts - pd.Timedelta(before_window), event_ts
+                event.event_timestamp - before_td, event.event_timestamp
             )
         ]["value"].mean()
 
         after = device_data[
             device_data["timestamp"].between(
-                event_ts, event_ts + pd.Timedelta(after_window)
+                event.event_timestamp, event.event_timestamp + after_td
             )
         ]["value"].mean()
 
@@ -127,7 +130,7 @@ def build_gold_event_response(
             "event_id": event.event_id,
             "device_id": event.device_id,
             "event_type": event.event_type,
-            "event_timestamp": event_ts,
+            "event_timestamp": event.event_timestamp,
             "sensor_type": sensor_type,
             "mean_before": before,
             "mean_after": after,

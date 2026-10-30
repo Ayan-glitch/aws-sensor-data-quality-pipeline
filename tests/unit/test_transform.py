@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pandas as pd
 from sensor_pipeline import validate, transform
 from sample_data import make_raw_readings_df, exact_duplicate_rows, hard_bound_violation_rows
@@ -49,7 +51,7 @@ def test_gold_event_response_computes_expected_delta():
         "event_timestamp": pd.Timestamp("2026-01-01 09:30:00"), "event_text": "test",
     }])
 
-    result = transform.build_gold_event_response(silver, events, before_window="1h30min", after_window="1h30min")
+    result = transform.build_gold_event_response(silver, events, before_window=timedelta(minutes=90), after_window=timedelta(minutes=90))
     assert len(result) == 1
     row = result.iloc[0]
     assert row["mean_before"] == 20.0  # the two 20.0 readings before the event
@@ -72,5 +74,5 @@ def test_gold_event_response_excludes_suspect_readings():
         "event_timestamp": pd.Timestamp("2026-01-01 09:00:00"), "event_text": "test",
     }])
 
-    result = transform.build_gold_event_response(silver, events, before_window="1h", after_window="1h")
+    result = transform.build_gold_event_response(silver, events, before_window=timedelta(hours=1), after_window=timedelta(hours=1))
     assert pd.isna(result.iloc[0]["mean_after"])  # suspect reading correctly excluded, not averaged in

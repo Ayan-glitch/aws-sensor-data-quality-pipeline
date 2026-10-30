@@ -74,13 +74,11 @@ def ingest_readings(source_path: Path) -> dict:
 
     parsed = raw[is_parsed].copy()
     parsed["timestamp_raw"] = parsed["timestamp"]  # preserve the original string
-    # Explicitly force datetime64[ns]. Left to inference, .apply() producing
-    # individual pd.Timestamp objects gets typed inconsistently across
-    # pandas versions (observed: datetime64[us] on 3.0, likely plain
-    # object dtype on 2.x), and an ambiguous/non-fixed resolution dtype is
-    # exactly what triggers "generic unit" datetime64 warnings during later
-    # arithmetic. Pin it explicitly here, once, so every downstream
-    # consumer gets a column with a known, consistent resolution.
+    # Pin an explicit datetime64[ns] dtype. Left to inference from .apply(),
+    # the resolution differs by pandas version (observed: datetime64[us] on
+    # pandas 3.0), so downstream code could silently get different dtypes
+    # depending on the installed version. Pinning it here gives every
+    # consumer one known resolution.
     parsed["timestamp"] = pd.to_datetime(parsed_ts[is_parsed]).astype("datetime64[ns]")
     parsed["timestamp_format_corrected"] = used_fallback[is_parsed]
 

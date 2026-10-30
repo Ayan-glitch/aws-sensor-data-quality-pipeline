@@ -3,7 +3,7 @@ Validation layer.
 
 Takes the successfully-parsed rows from ingest.py and applies the
 business rules from config.py. The governing principle, same as the
-original FYTA-style analysis this project is modeled on: fix what has
+real-world sensor data-quality practice this project is modeled on: fix what has
 one deterministic correct answer, flag everything else, delete only
 what's provably redundant.
 
@@ -92,7 +92,7 @@ def flag_flatline(df: pd.DataFrame, min_run_length: int = 20) -> pd.DataFrame:
     Generic run-length flatline detector, per (device_id, sensor_type).
     Not hardcoded to any specific device: this runs identically across
     every device/sensor combination, the same generalizable approach used
-    in the original FYTA-style analysis, not a rule written for one
+    in the practice this project is modeled on, not a rule written for one
     specific known-bad device.
 
     min_run_length=20 at a 15-minute interval is 5 hours of identical
