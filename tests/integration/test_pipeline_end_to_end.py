@@ -23,6 +23,8 @@ def test_full_pipeline_matches_known_injected_issues():
     assert report["full_duplicate_count"] == 3        # DEV-05 duplicates
     assert report["key_conflict_count"] == 6           # DEV-05 impossible-value conflicts
     assert report["valid_record_count"] == 42243
+    assert report["missing_interval_count"] == 4         # DEV-04 outage, one gap per sensor type
+    assert report["missing_reading_count"] == 768         # 4 sensor types x 192 readings (2 days)
 
     flags = report["flag_breakdown"]
     assert flags["flag_unit_mismatch"] == 1344          # DEV-02

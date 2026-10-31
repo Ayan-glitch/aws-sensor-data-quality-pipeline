@@ -34,10 +34,11 @@ def write_silver(silver: pd.DataFrame) -> Path:
     return _write_parquet(silver, config.SILVER_DIR, "sensor_readings_silver.parquet")
 
 
-def write_gold(gold_quality: pd.DataFrame, gold_events: pd.DataFrame) -> dict:
+def write_gold(gold_quality: pd.DataFrame, gold_events: pd.DataFrame, gaps: pd.DataFrame) -> dict:
     return {
         "quality_summary": _write_parquet(gold_quality, config.GOLD_DIR, "device_daily_quality.parquet"),
         "event_response": _write_parquet(gold_events, config.GOLD_DIR, "event_response.parquet"),
+        "missing_intervals": _write_parquet(gaps, config.GOLD_DIR, "missing_intervals.parquet"),
     }
 
 
@@ -62,16 +63,18 @@ if __name__ == "__main__":
     silver = transform.build_silver(validated)
     gold_quality = transform.build_gold_quality_summary(silver)
     gold_events = transform.build_gold_event_response(silver, events)
+    gaps = validate.find_missing_intervals(silver)
 
     bronze_paths = write_bronze(bronze)
     silver_path = write_silver(silver)
-    gold_paths = write_gold(gold_quality, gold_events)
+    gold_paths = write_gold(gold_quality, gold_events, gaps)
 
     checks = [
         ("bronze readings", bronze_paths["readings"], len(bronze["readings"])),
         ("silver", silver_path, len(silver)),
         ("gold quality summary", gold_paths["quality_summary"], len(gold_quality)),
         ("gold event response", gold_paths["event_response"], len(gold_events)),
+        ("gold missing intervals", gold_paths["missing_intervals"], len(gaps)),
     ]
 
     all_ok = True

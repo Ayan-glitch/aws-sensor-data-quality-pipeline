@@ -95,6 +95,37 @@ def flag_flatline(df: pd.DataFrame, min_run_length: int = 20) -> pd.DataFrame:
     return df
 
 
+def find_missing_intervals(
+    df: pd.DataFrame, expected_minutes: int = config.EXPECTED_INTERVAL_MINUTES
+) -> pd.DataFrame:
+    """
+    Finds stretches where readings are missing, separately for each device and
+    sensor type. A missing reading is a row that doesn't exist, so it can't be
+    flagged on a row. This returns a separate table instead, with one row per
+    gap:
+      last_seen_before: the last timestamp before the gap
+      first_seen_after: the first timestamp after the gap
+      missing_readings: how many readings should have arrived in between
+
+    The number of missing readings is the gap length divided by the expected
+    interval, rounded. A reading that arrives a few minutes late rounds to zero
+    missing readings and isn't reported. Only gaps between two readings are
+    found. A device that stops reporting for good, or starts late, isn't caught.
+    """
+    cols = ["device_id", "sensor_type", "timestamp"]
+    ts = df[cols].drop_duplicates().sort_values(cols).reset_index(drop=True)
+
+    grouped = ts.groupby(["device_id", "sensor_type"])["timestamp"]
+    gap_seconds = grouped.diff().dt.total_seconds()
+    ts["last_seen_before"] = grouped.shift(1)
+    ts["first_seen_after"] = ts["timestamp"]
+    ts["missing_readings"] = (gap_seconds / (expected_minutes * 60)).round() - 1
+
+    gaps = ts[ts["missing_readings"] >= 1].copy()
+    gaps["missing_readings"] = gaps["missing_readings"].astype(int)
+    return gaps[["device_id", "sensor_type", "last_seen_before", "first_seen_after", "missing_readings"]].reset_index(drop=True)
+
+
 def run_validation(df: pd.DataFrame) -> pd.DataFrame:
     """Runs all the validation steps in order and adds is_suspect."""
     df = cast_numeric(df)

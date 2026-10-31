@@ -23,13 +23,14 @@ def run_pipeline(write_output: bool = True) -> dict:
     silver = transform.build_silver(validated)
     gold_quality = transform.build_gold_quality_summary(silver)
     gold_events = transform.build_gold_event_response(silver, events)
+    gaps = validate.find_missing_intervals(silver)
 
     # --- Storage (can be switched off so tests don't write to disk) ---
     written_paths = {}
     if write_output:
         written_paths["bronze"] = storage.write_bronze(bronze)
         written_paths["silver"] = storage.write_silver(silver)
-        written_paths["gold"] = storage.write_gold(gold_quality, gold_events)
+        written_paths["gold"] = storage.write_gold(gold_quality, gold_events, gaps)
 
     # --- Report ---
     # The comment on each line says what the number counts.
@@ -42,6 +43,8 @@ def run_pipeline(write_output: bool = True) -> dict:
         "key_conflict_count": int(validated["is_key_conflict"].sum()),  # same key but different values, kept and flagged
         "valid_record_count": len(silver),  # parsed minus full duplicates, i.e. the silver table
         "suspect_record_count": int(silver["is_suspect"].sum()),  # valid records with at least one flag
+        "missing_interval_count": len(gaps),  # stretches of missing readings, per device and sensor type
+        "missing_reading_count": int(gaps["missing_readings"].sum()),  # readings that should exist but don't
         "flag_breakdown": {
             col: int(silver[col].sum())
             for col in silver.columns
@@ -55,6 +58,7 @@ def run_pipeline(write_output: bool = True) -> dict:
         "silver": silver,
         "gold_quality": gold_quality,
         "gold_events": gold_events,
+        "gaps": gaps,
         "written_paths": written_paths,
     }
 
@@ -72,6 +76,8 @@ def print_report(report: dict) -> None:
     print(f"  Key conflicts (kept, flagged):{report['key_conflict_count']:>7,}")
     print(f"  Valid records (silver layer): {report['valid_record_count']:>7,}")
     print(f"    of which flagged suspect:   {report['suspect_record_count']:>7,}")
+    print(f"  Missing intervals found:      {report['missing_interval_count']:>7,}")
+    print(f"    readings missing in them:   {report['missing_reading_count']:>7,}")
     print()
     print("  Flag breakdown (within silver, not mutually exclusive):")
     for flag, count in report["flag_breakdown"].items():

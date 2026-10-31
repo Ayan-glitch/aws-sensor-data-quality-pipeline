@@ -40,6 +40,25 @@ an unusual value can still be real.
 **Sampling interval.** Readings are expected every 15 minutes. This is set in
 the config instead of being worked out from the data.
 
+**Missing intervals.** A missing reading is a row that doesn't exist, so it can't
+be flagged on a row the way the other problems are. `find_missing_intervals` in
+`validate.py` returns a separate table with one row per gap, per device and sensor
+type:
+
+| Column | Notes |
+|---|---|
+| `device_id`, `sensor_type` | Which series the gap is in. |
+| `last_seen_before` | Last timestamp before the gap. |
+| `first_seen_after` | First timestamp after the gap. |
+| `missing_readings` | Readings that should have arrived in between. |
+
+The count is the gap length divided by the 15-minute interval, rounded, minus one.
+A reading that arrives a few minutes late rounds to nothing missing, so it isn't
+reported. Only gaps between two readings are found. A device that stops reporting
+for good, or only starts partway through, isn't caught. A missing row is also
+different from a null value, which is a row that exists with no number in it.
+The table is written to `output/gold/missing_intervals.parquet`.
+
 ## context_events
 
 | Column | Type | Notes |
@@ -59,7 +78,7 @@ the config instead of being worked out from the data.
 | 3 | `DEV-07` | `soil_moisture` timestamps in a different format | Yes, parsed with the fallback format |
 | 4 | `DEV-05` | Impossible moisture values (below 0) | Yes |
 | 5 | `DEV-06` | `soil_moisture` stuck on one value | Yes |
-| 6 | `DEV-04` | 2-day gap with no rows | Not yet |
+| 6 | `DEV-04` | 2-day gap with no rows | Yes, as 4 missing intervals (one per sensor type) of 192 readings each |
 | 7 | `DEV-03` | EC drifting upward over several days | Not yet |
 
 Problem 7 shouldn't be corrected automatically when it is detected. It could be

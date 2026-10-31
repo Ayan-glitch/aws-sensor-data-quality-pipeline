@@ -1,3 +1,4 @@
+import pandas as pd
 from sensor_pipeline import validate
 from sample_data import (
     make_raw_readings_df, exact_duplicate_rows, key_conflict_rows,
@@ -74,3 +75,55 @@ def test_is_suspect_is_false_for_clean_data():
               "sensor_type": "soil_moisture", "value": "35.0", "unit": "%"}]
     result = _validated_from_rows(rows)
     assert result["is_suspect"].iloc[0] == False  # noqa: E712
+
+
+def _readings_at(times, device="TEST-G", sensor_type="soil_moisture"):
+    """Builds a small DataFrame with one row per timestamp, for the gap tests."""
+    return pd.DataFrame({
+        "device_id": device,
+        "sensor_type": sensor_type,
+        "timestamp": pd.to_datetime(times),
+    })
+
+
+def test_no_gap_when_readings_are_on_schedule():
+    df = _readings_at(["2026-01-01 00:00", "2026-01-01 00:15", "2026-01-01 00:30"])
+    assert len(validate.find_missing_intervals(df)) == 0
+
+
+def test_gap_is_found_and_counted():
+    # 00:15 to 01:00 is 45 minutes, so the readings at 00:30 and 00:45 are missing
+    df = _readings_at(["2026-01-01 00:00", "2026-01-01 00:15", "2026-01-01 01:00"])
+    gaps = validate.find_missing_intervals(df)
+    assert len(gaps) == 1
+    row = gaps.iloc[0]
+    assert row["missing_readings"] == 2
+    assert row["last_seen_before"] == pd.Timestamp("2026-01-01 00:15")
+    assert row["first_seen_after"] == pd.Timestamp("2026-01-01 01:00")
+
+
+def test_a_slightly_late_reading_is_not_a_gap():
+    # 20 minutes between readings rounds to one interval, so nothing is missing
+    df = _readings_at(["2026-01-01 00:00", "2026-01-01 00:20"])
+    assert len(validate.find_missing_intervals(df)) == 0
+
+
+def test_repeated_timestamps_do_not_create_a_gap():
+    df = _readings_at(["2026-01-01 00:00", "2026-01-01 00:00", "2026-01-01 00:15"])
+    assert len(validate.find_missing_intervals(df)) == 0
+
+
+def test_gaps_are_found_separately_for_each_sensor_type():
+    # only soil_temp has a gap, soil_moisture is complete
+    complete = _readings_at(["2026-01-01 00:00", "2026-01-01 00:15", "2026-01-01 00:30"], sensor_type="soil_moisture")
+    with_gap = _readings_at(["2026-01-01 00:00", "2026-01-01 00:30"], sensor_type="soil_temp")
+    gaps = validate.find_missing_intervals(pd.concat([complete, with_gap], ignore_index=True))
+    assert len(gaps) == 1
+    assert gaps.iloc[0]["sensor_type"] == "soil_temp"
+    assert gaps.iloc[0]["missing_readings"] == 1
+
+
+def test_the_interval_can_be_changed():
+    # with a 30 minute interval, readings 30 minutes apart are on schedule
+    df = _readings_at(["2026-01-01 00:00", "2026-01-01 00:30", "2026-01-01 01:00"])
+    assert len(validate.find_missing_intervals(df, expected_minutes=30)) == 0

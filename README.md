@@ -59,15 +59,16 @@ pytest -v
 ```
 
 Step 3 prints a report with the number of records read, quarantined, corrected,
-removed as duplicates and kept. It also writes Parquet files to `output/bronze/`,
-`output/silver/` and `output/gold/`. The tests have been run on Windows and on
+removed as duplicates and kept, and the number of missing intervals found. It
+also writes Parquet files to `output/bronze/`, `output/silver/` and
+`output/gold/`. The tests have been run on Windows and on
 GitHub Actions (Linux). The workflow is in `.github/workflows/tests.yml` and
 runs on every push.
 
 ## Known gaps
 
-- **Gaps in the readings aren't detected.** The sample data has a 2-day outage on
-  `DEV-04`, but no rule looks for missing intervals yet.
+- **Missing intervals only cover gaps between readings.** A device that stops
+  reporting for good, or starts late, isn't caught.
 - **The EC drift on `DEV-03` isn't flagged.** It stays inside the configured
   normal range, so no rule picks it up.
 - **Null readings aren't flagged.** A value that isn't a number becomes NaN and
