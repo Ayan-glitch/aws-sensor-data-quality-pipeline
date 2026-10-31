@@ -6,26 +6,26 @@ from sample_data import (
 
 
 def _validated_from_rows(rows):
-    """Builds a DataFrame shaped like ingest.py's output (post-parsing) and validates it."""
+    """Builds a DataFrame like the output of ingest.py and runs validation on it."""
     df = make_raw_readings_df(rows)
     df["timestamp"] = df["timestamp"].apply(lambda s: __import__("pandas").Timestamp(s))
     return validate.run_validation(df)
 
 
 def test_exact_duplicates_flagged_not_removed():
-    # validate.py only FLAGS duplicates, removal happens later in transform.py.
-    # Both rows should still be present here, with the SECOND one flagged.
+    # validate.py only flags duplicates, transform.py removes them.
+    # Both rows are still here, and the second one is flagged.
     result = _validated_from_rows(exact_duplicate_rows())
     assert len(result) == 2
-    assert result["is_full_duplicate"].sum() == 1  # keep=first, so only the 2nd is flagged
-    assert not result["is_key_conflict"].any()  # same value, not a conflict
+    assert result["is_full_duplicate"].sum() == 1  # keep="first", so only the second is flagged
+    assert not result["is_key_conflict"].any()  # same value, so no conflict
 
 
 def test_key_conflict_detected_and_not_confused_with_duplicate():
     result = _validated_from_rows(key_conflict_rows())
     assert len(result) == 2
-    assert result["is_key_conflict"].sum() == 2  # BOTH rows flagged, different values
-    assert result["is_full_duplicate"].sum() == 0  # NOT a duplicate, values differ
+    assert result["is_key_conflict"].sum() == 2  # both rows flagged, the values differ
+    assert result["is_full_duplicate"].sum() == 0  # not a duplicate, the values differ
 
 
 def test_unit_mismatch_detected():
@@ -42,7 +42,7 @@ def test_matching_unit_not_flagged():
 
 def test_hard_bound_violation_detected():
     result = _validated_from_rows(hard_bound_violation_rows())
-    assert result["flag_hard_bound_violation"].sum() == 2  # both -10 and 150 are out of [0,100]
+    assert result["flag_hard_bound_violation"].sum() == 2  # -10 and 150 are both outside 0 to 100
 
 
 def test_value_within_bounds_not_flagged():
@@ -54,8 +54,8 @@ def test_value_within_bounds_not_flagged():
 
 def test_flatline_detected_above_threshold():
     result = _validated_from_rows(flatline_rows(run_length=25))
-    assert result["flag_flatline"].sum() == 25  # the WHOLE run, including the first row
-    # first row of the run must be flagged too, not just the repeats after it
+    assert result["flag_flatline"].sum() == 25  # the whole run, first row included
+    # the first row of the run is flagged too, not only the repeats
     assert result.sort_values("timestamp")["flag_flatline"].iloc[0] == True  # noqa: E712
 
 

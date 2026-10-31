@@ -13,18 +13,18 @@ def _validated_from_rows(rows):
 
 def test_silver_removes_only_full_duplicates():
     validated = _validated_from_rows(exact_duplicate_rows())
-    assert len(validated) == 2  # both still present pre-silver
+    assert len(validated) == 2  # both rows are still there before silver
     silver = transform.build_silver(validated)
-    assert len(silver) == 1  # exactly one copy removed
-    assert "is_full_duplicate" not in silver.columns  # no longer meaningful post-dedup
+    assert len(silver) == 1  # one copy removed
+    assert "is_full_duplicate" not in silver.columns  # dropped after dedup
 
 
 def test_silver_keeps_suspect_rows_with_flags_intact():
-    # a flagged-but-not-duplicate row must survive into silver, flags and all
+    # a flagged row that isn't a duplicate has to stay in silver, with its flags
     validated = _validated_from_rows(hard_bound_violation_rows())
     silver = transform.build_silver(validated)
-    assert len(silver) == 2  # nothing dropped, these aren't duplicates
-    assert silver["is_suspect"].all()  # flags preserved, not cleared
+    assert len(silver) == 2  # nothing dropped, they aren't duplicates
+    assert silver["is_suspect"].all()  # flags are still set
 
 
 def test_gold_quality_summary_counts_are_consistent():
@@ -36,7 +36,7 @@ def test_gold_quality_summary_counts_are_consistent():
 
 
 def test_gold_event_response_computes_expected_delta():
-    # hand-built: a device with a clean step up in moisture right at an event
+    # moisture steps up from 20 to 30 around the event
     rows = [
         {"device_id": "TEST-EV", "timestamp": "2026-01-01 08:00:00", "sensor_type": "soil_moisture", "value": "20.0", "unit": "%"},
         {"device_id": "TEST-EV", "timestamp": "2026-01-01 09:00:00", "sensor_type": "soil_moisture", "value": "20.0", "unit": "%"},
@@ -60,8 +60,8 @@ def test_gold_event_response_computes_expected_delta():
 
 
 def test_gold_event_response_excludes_suspect_readings():
-    # same shape as above, but the "after" readings are hard-bound violations,
-    # they must NOT be averaged into the result
+    # like the test above, but the "after" reading is a hard-bound violation,
+    # so it must be left out of the average
     rows = [
         {"device_id": "TEST-EV2", "timestamp": "2026-01-01 08:00:00", "sensor_type": "soil_moisture", "value": "20.0", "unit": "%"},
         {"device_id": "TEST-EV2", "timestamp": "2026-01-01 10:00:00", "sensor_type": "soil_moisture", "value": "-5.0", "unit": "%"},
@@ -75,4 +75,4 @@ def test_gold_event_response_excludes_suspect_readings():
     }])
 
     result = transform.build_gold_event_response(silver, events, before_window=timedelta(hours=1), after_window=timedelta(hours=1))
-    assert pd.isna(result.iloc[0]["mean_after"])  # suspect reading correctly excluded, not averaged in
+    assert pd.isna(result.iloc[0]["mean_after"])  # the suspect reading was left out

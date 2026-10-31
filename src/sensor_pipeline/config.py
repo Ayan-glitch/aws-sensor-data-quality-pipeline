@@ -1,11 +1,8 @@
 """
-Central configuration for the pipeline.
+Settings for the pipeline: paths, thresholds and validation rules.
 
-Every threshold, range, and path lives here, not scattered through the
-ingestion/validation code. This mirrors the "config, not code" principle:
-if a new device needs a different expected sampling interval, or a new
-sensor type needs a different valid range, this is the one file to touch,
-not a search through business logic.
+Everything that might need changing lives here, so adding a sensor type or
+changing a range doesn't mean editing the validation code.
 """
 from pathlib import Path
 
@@ -19,23 +16,21 @@ BRONZE_DIR = REPO_ROOT / "output" / "bronze"
 SILVER_DIR = REPO_ROOT / "output" / "silver"
 GOLD_DIR = REPO_ROOT / "output" / "gold"
 
-# Expected sampling interval, per the data contract in docs/data_dictionary.md.
-# Declared explicitly rather than inferred from the data itself, so gap
-# detection is auditable: anyone reading this file knows exactly what
-# assumption the gap detector is using.
+# Expected time between readings, as set out in docs/data_dictionary.md.
+# It's set here instead of being worked out from the data, so the gap check
+# has a fixed value to compare against.
 EXPECTED_INTERVAL_MINUTES = 15
 
-# Accepted timestamp formats, tried in order. A row that matches none of
-# these is a structural failure, not a soft validation issue, and is
-# quarantined rather than passed through with a flag.
+# Timestamp formats to try, in order. A row that matches none of them can't
+# be placed in time at all, so it goes to quarantine instead of being flagged.
 TIMESTAMP_FORMATS = [
-    "%Y-%m-%d %H:%M:%S",  # the documented/expected format
-    "%d/%m/%Y %H:%M",     # a known alternate format some devices emit
+    "%Y-%m-%d %H:%M:%S",  # the documented format
+    "%d/%m/%Y %H:%M",     # alternate format that some devices send
 ]
 
-# Per-sensor-type validation rules. "hard_min"/"hard_max" are physically
-# impossible bounds (quarantine-worthy, not debatable). "typical_min"/
-# "typical_max" are plausibility bounds for flagging, not rejecting.
+# Validation rules per sensor type. hard_min/hard_max are limits a real
+# reading can't go past. typical_min/typical_max are only used to flag
+# values that look unusual, they don't reject anything.
 SENSOR_RULES = {
     "soil_moisture": {"unit": "%", "hard_min": 0, "hard_max": 100, "typical_min": 0, "typical_max": 70},
     "soil_temp": {"unit": "C", "hard_min": None, "hard_max": None, "typical_min": 5, "typical_max": 35},
@@ -43,8 +38,8 @@ SENSOR_RULES = {
     "humidity": {"unit": "%", "hard_min": 0, "hard_max": 100, "typical_min": 20, "typical_max": 100},
 }
 
-# The business key used to define a "duplicate" reading. See data_dictionary.md
-# for the reasoning: two rows sharing this key but with DIFFERENT values are
-# NOT silently deduplicated, only exact full-row matches are.
+# Key that identifies a reading. Two rows with the same key but different
+# values are flagged as a conflict. Only rows that match on every column in
+# FULL_ROW_MATCH_COLUMNS count as duplicates (see data_dictionary.md).
 DUPLICATE_KEY = ["device_id", "timestamp", "sensor_type"]
 FULL_ROW_MATCH_COLUMNS = ["device_id", "timestamp", "sensor_type", "value", "unit"]

@@ -1,11 +1,6 @@
 """
-CLI entry point for running the full local pipeline.
-
-This is a thin wrapper, not where any logic lives, it exists only so the
-README's documented command (`python scripts/run_local_pipeline.py`)
-works without requiring the `-m src.sensor_pipeline.main` module syntax,
-which is correct but not the friendliest thing to ask a first-time user
-to type.
+Runs the full local pipeline. This is a short wrapper around
+src/sensor_pipeline/main.py, so it can be started with a plain script path.
 
 Run from the repo root: python scripts/run_local_pipeline.py
 """

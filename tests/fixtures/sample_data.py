@@ -1,22 +1,17 @@
 """
-Small, hand-built test data. Deliberately NOT the full 42k-row generated
-dataset, unit tests should run in milliseconds against a handful of rows
-built specifically to exercise one rule at a time, not by re-processing
-the entire fleet on every test.
+Small hand-made test data. Each helper builds a few rows for one rule, so the
+unit tests run quickly and don't need the full generated dataset.
 
-Plain functions, not pytest fixtures, on purpose: this lets every test
-function call these directly and be understood by reading top to bottom,
-and lets this exact file be verified independently of whether pytest is
-installed in whatever environment is reading it.
+These are plain functions instead of pytest fixtures, so each test can call
+them directly.
 """
 import pandas as pd
 
 
 def make_raw_readings_df(rows: list[dict]) -> pd.DataFrame:
     """
-    Builds a DataFrame matching exactly what pd.read_csv would produce
-    from sensor_readings.csv, string dtype throughout, since that's what
-    ingest.ingest_readings expects as input (it does its own casting).
+    Builds a DataFrame like the one pd.read_csv gives for sensor_readings.csv,
+    with every column as text.
     """
     df = pd.DataFrame(rows)
     return df.astype(str)
@@ -38,7 +33,7 @@ def malformed_timestamp_rows() -> list[dict]:
 
 
 def fallback_format_rows() -> list[dict]:
-    """A row using the documented ALTERNATE format, should parse via fallback, not fail."""
+    """A row in the alternate timestamp format. It should parse through the fallback."""
     return [
         {"device_id": "TEST-03", "timestamp": "01/01/2026 00:00", "sensor_type": "soil_moisture", "value": "33.0", "unit": "%"},
     ]
@@ -46,11 +41,11 @@ def fallback_format_rows() -> list[dict]:
 
 def exact_duplicate_rows() -> list[dict]:
     row = {"device_id": "TEST-04", "timestamp": "2026-01-01 00:00:00", "sensor_type": "ec", "value": "700.0", "unit": "uS_cm"}
-    return [row, dict(row)]  # two identical copies
+    return [row, dict(row)]  # two identical rows
 
 
 def key_conflict_rows() -> list[dict]:
-    """Same device/timestamp/sensor_type, DIFFERENT values, not a duplicate."""
+    """Same device, timestamp and sensor_type but different values. Not a duplicate."""
     return [
         {"device_id": "TEST-05", "timestamp": "2026-01-01 00:00:00", "sensor_type": "soil_moisture", "value": "30.0", "unit": "%"},
         {"device_id": "TEST-05", "timestamp": "2026-01-01 00:00:00", "sensor_type": "soil_moisture", "value": "45.0", "unit": "%"},
@@ -59,7 +54,7 @@ def key_conflict_rows() -> list[dict]:
 
 def unit_mismatch_rows() -> list[dict]:
     return [
-        {"device_id": "TEST-06", "timestamp": "2026-01-01 00:00:00", "sensor_type": "soil_temp", "value": "20.0", "unit": "F"},  # should be C
+        {"device_id": "TEST-06", "timestamp": "2026-01-01 00:00:00", "sensor_type": "soil_temp", "value": "20.0", "unit": "F"},  # the expected unit is C
     ]
 
 
@@ -71,7 +66,7 @@ def hard_bound_violation_rows() -> list[dict]:
 
 
 def flatline_rows(run_length: int = 25) -> list[dict]:
-    """run_length identical readings in a row, default above the 20-reading threshold."""
+    """run_length identical readings in a row. The default is above the 20-reading threshold."""
     rows = []
     for i in range(run_length):
         rows.append({
@@ -85,7 +80,7 @@ def flatline_rows(run_length: int = 25) -> list[dict]:
 
 
 def short_run_rows(run_length: int = 5) -> list[dict]:
-    """Same value repeated, but BELOW the flatline threshold, should NOT be flagged."""
+    """The same value repeated, but below the flatline threshold, so it shouldn't be flagged."""
     rows = []
     for i in range(run_length):
         rows.append({

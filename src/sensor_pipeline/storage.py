@@ -1,15 +1,9 @@
 """
-Storage layer: writes DataFrames to Parquet under the layer directories
-defined in config.py.
+Writes the bronze, silver and gold tables to Parquet, in the folders set in
+config.py.
 
-NOTE on verification: this file could not be executed in the development
-sandbox that built the rest of this pipeline, because that environment
-has no internet access and pyarrow could not be installed there. Every
-other file in src/sensor_pipeline has been run and verified against real
-output; this one has not, by me. It needs to be verified by actually
-running it, which is exactly what the "if __name__" block at the bottom
-of this file is for, run it directly and check its printed output
-before trusting it.
+Running this file directly (python -m src.sensor_pipeline.storage) writes
+every table, reads it back and checks the row counts.
 """
 from pathlib import Path
 
@@ -48,15 +42,13 @@ def write_gold(gold_quality: pd.DataFrame, gold_events: pd.DataFrame) -> dict:
 
 
 def read_parquet(path: Path) -> pd.DataFrame:
-    """Thin wrapper, exists so callers don't need to import pyarrow-specific options directly."""
+    """Reads a Parquet file back into a DataFrame."""
     return pd.read_parquet(path, engine="pyarrow")
 
 
 if __name__ == "__main__":
-    # Self-check: run the full pipeline, write every layer, read every
-    # file back, and verify row counts match what was written. This is
-    # the actual verification this file needs, run it yourself and
-    # confirm every line below says OK before trusting this module.
+    # Self-check: run the pipeline, write every table, read each one back
+    # and compare the row counts.
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from sensor_pipeline import ingest, validate, transform

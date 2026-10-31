@@ -1,19 +1,10 @@
 """
-Ingestion layer.
+Ingestion: reads the raw CSV and parses the timestamps.
 
-Job: read the raw CSV exactly as it exists on disk, attach ingestion
-metadata, and separate rows whose TIMESTAMP cannot be parsed at all from
-rows that parse successfully. A timestamp that fails to parse is a
-structural failure, not a soft data-quality issue: without a valid
-timestamp you can't safely run gap detection, duplicate detection
-(timestamp is part of the key), or anything time-based downstream. So
-these rows go straight to quarantine here, before validation even starts.
-
-Rows that DO parse continue on; everything else (range checks, unit
-checks, duplicate checks) happens in validate.py, not here. Keeping this
-split means ingest.py only ever needs to change if the INPUT FORMAT
-changes, while validate.py changes if the BUSINESS RULES change. Two
-different reasons to change, so two different files.
+Rows whose timestamp can't be parsed go to quarantine. Without a timestamp a
+row can't be checked for duplicates or gaps (the timestamp is part of the key),
+so there's no point sending it on to validation. All other checks (ranges,
+units, duplicates) happen in validate.py.
 """
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,15 +16,12 @@ from . import config
 
 def _try_parse_timestamp(raw: str):
     """
-    Try each configured format in order. Returns (parsed_timestamp, used_fallback)
-    on success, or (None, None) if every format fails.
+    Tries each format in config.TIMESTAMP_FORMATS in order.
 
-    used_fallback is False only when the FIRST (primary, documented) format
-    matched. Any later format matching counts as a deterministic correction,
-    not a silent pass-through, because the row's timestamp had to be
-    reinterpreted away from the documented contract to be understood at all.
-    This is what lets main.py report an honest "corrected record count"
-    instead of that correction happening invisibly.
+    Returns (timestamp, used_fallback) on success, where used_fallback is True
+    if anything other than the first (documented) format was needed. Returns
+    (None, None) if no format matches. Fallback parses are counted as
+    corrections in the report.
     """
     for i, fmt in enumerate(config.TIMESTAMP_FORMATS):
         try:
@@ -46,23 +34,16 @@ def _try_parse_timestamp(raw: str):
 
 def ingest_readings(source_path: Path) -> dict:
     """
-    Reads the raw sensor_readings CSV.
+    Reads the sensor readings CSV and returns two DataFrames:
+      "parsed":      rows with a valid timestamp
+      "quarantined": rows whose timestamp matched no format, with a
+                     quarantine_reason column
 
-    Returns a dict with two DataFrames:
-      - "parsed":      rows with a successfully parsed timestamp, ready
-                        for validate.py.
-      - "quarantined":  rows whose timestamp didn't match any known
-                        format, with a reason column explaining why,
-                        untouched otherwise, nothing inferred or guessed.
-
-    Also attaches `source_file` and `ingested_at` to every row, per the
-    data contract, so downstream consumers always know where a row came
-    from and when it entered the pipeline, not just what it contains.
+    Every row also gets source_file and ingested_at columns.
     """
-    raw = pd.read_csv(source_path, dtype=str)  # read everything as string first;
-    # numeric casting happens in validate.py, AFTER we know which rows are
-    # even structurally sound. Casting here would risk silently coercing a
-    # malformed value into NaN before we've had a chance to flag it properly.
+    # Everything is read as text first. Numbers are converted in validate.py,
+    # once we know which rows have a usable timestamp.
+    raw = pd.read_csv(source_path, dtype=str)
 
     raw["source_file"] = source_path.name
     raw["ingested_at"] = pd.Timestamp(datetime.now(timezone.utc))
@@ -73,12 +54,9 @@ def ingest_readings(source_path: Path) -> dict:
     is_parsed = parsed_ts.notna()
 
     parsed = raw[is_parsed].copy()
-    parsed["timestamp_raw"] = parsed["timestamp"]  # preserve the original string
-    # Pin an explicit datetime64[ns] dtype. Left to inference from .apply(),
-    # the resolution differs by pandas version (observed: datetime64[us] on
-    # pandas 3.0), so downstream code could silently get different dtypes
-    # depending on the installed version. Pinning it here gives every
-    # consumer one known resolution.
+    parsed["timestamp_raw"] = parsed["timestamp"]  # keep the original string
+    # Set the dtype explicitly. Left alone, pandas picks a different time
+    # resolution depending on the version (datetime64[us] on pandas 3.0).
     parsed["timestamp"] = pd.to_datetime(parsed_ts[is_parsed]).astype("datetime64[ns]")
     parsed["timestamp_format_corrected"] = used_fallback[is_parsed]
 
@@ -90,12 +68,8 @@ def ingest_readings(source_path: Path) -> dict:
 
 def ingest_context_events(source_path: Path) -> pd.DataFrame:
     """
-    Context events are simpler: the synthetic generator only ever emits
-    one timestamp format for these, so there's no fallback-parsing logic
-    needed here. Kept as its own function rather than bolted onto
-    ingest_readings because the two files have different schemas and
-    different roles in the pipeline, conflating them would make both
-    harder to reason about.
+    Reads the context events (watering/fertilizing). These only ever use one
+    timestamp format, so there's no fallback parsing here.
     """
     events = pd.read_csv(source_path)
     events["event_timestamp"] = pd.to_datetime(events["event_timestamp"])

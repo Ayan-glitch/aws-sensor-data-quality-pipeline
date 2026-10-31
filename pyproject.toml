@@ -1,7 +1,7 @@
 [project]
 name = "aws-sensor-data-quality-pipeline"
 version = "0.1.0"
-description = "A local-first IoT sensor data quality and feature pipeline, with an optional cost-gated AWS path."
+description = "IoT sensor data quality pipeline in Python, with a planned AWS version."
 requires-python = ">=3.11"
 
 [tool.pytest.ini_options]

@@ -13,10 +13,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          # Matches the version this project was actually developed and
-          # verified against, see requirements.txt for why pyarrow's
-          # lower bound matters here, an older pyarrow has no prebuilt
-          # wheel for newer Python versions and fails to build from source.
+          # Same Python version used for development. Older pyarrow releases
+          # have no prebuilt package for it, which is why requirements.txt
+          # sets a minimum pyarrow version.
           python-version: "3.13"
 
       - name: Install dependencies

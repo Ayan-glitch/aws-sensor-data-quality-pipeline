@@ -1,13 +1,13 @@
 """
-Deterministic synthetic sensor data generator.
+Generates the synthetic sensor data used by the pipeline.
 
-Produces two files under data/sample/:
+Writes two files to data/sample/:
   - sensor_readings.csv
   - context_events.csv
 
-Fully synthetic. Fixed random seed -> identical output every run, so the
-pipeline's behaviour can be verified against known-injected issues rather
-than against a dataset whose problems were discovered, not designed.
+All values are made up. The random seed is fixed, so every run gives the same
+files. Some problems are added on purpose (see the comments below), so the
+pipeline can be checked against issues we know are there.
 
 Run: python scripts/generate_sample_data.py
 """
@@ -40,13 +40,10 @@ def iso(ts: datetime) -> str:
     return ts.strftime("%Y-%m-%d %H:%M:%S")
 
 
-# --- Event-response model ---
-# A deliberately SUBTLE, not obvious, effect: comparable in size to the
-# existing sensor noise, so a naive single-event before/after check can
-# plausibly miss it on any given event, the same "small real signal
-# riding on noise" property as the real-world case this project is
-# modelled on. The signal is real and should show up in AGGREGATE across
-# many events, not necessarily on every individual one.
+# --- Event response ---
+# Watering raises soil moisture a little and fertilizing raises EC, for a few
+# hours afterwards. The effect is small compared to the sensor noise, so a
+# single event can easily miss it. It should show up across many events.
 WATERING_PEAK_MEAN, WATERING_PEAK_STD = 2.5, 0.6   # soil_moisture, % VWC
 WATERING_DECAY_TAU_HOURS = 0.6
 WATERING_LOOKBACK_HOURS = 3
@@ -58,10 +55,9 @@ FERTILIZING_LOOKBACK_HOURS = 8
 
 def _most_recent_event(device_events, current_ts, event_type, max_lookback_hours):
     """
-    Finds the closest PRIOR event of the given type for this device,
-    within the lookback window. Only the single most recent qualifying
-    event is used, not a sum over several, to keep the response model
-    simple and avoid double-counting overlapping events.
+    Returns the hours since the most recent event of this type before
+    current_ts, or None if there isn't one inside the lookback window. Only
+    the latest event counts, so overlapping events aren't added together.
     """
     best = None
     for ev_ts, ev_type in device_events:
@@ -79,10 +75,9 @@ def _most_recent_event(device_events, current_ts, event_type, max_lookback_hours
 
 def event_response_delta(device_events, current_ts, sensor_type):
     """
-    Returns an additive delta to apply to a reading, based on the most
-    recent relevant prior event, or 0.0 if none qualifies. Deterministic
-    given the shared `random` module state, so still fully reproducible
-    under the fixed seed.
+    Returns the amount to add to a reading because of a recent event, or 0.0
+    if there isn't one. Uses the shared random state, so it's still the same
+    every run with the fixed seed.
     """
     if sensor_type == "soil_moisture":
         elapsed = _most_recent_event(device_events, current_ts, "watering", WATERING_LOOKBACK_HOURS)
@@ -102,9 +97,8 @@ def event_response_delta(device_events, current_ts, sensor_type):
 
 
 def generate_readings(events):
-    # Index events per device once, instead of re-filtering the full
-    # events list on every single reading, that would be O(readings x
-    # events) unnecessarily; this is a cheap one-time grouping instead.
+    # Group the events by device once, so they aren't filtered again for
+    # every reading.
     events_by_device = {}
     for e in events:
         events_by_device.setdefault(e["device_id"], []).append(
@@ -113,7 +107,7 @@ def generate_readings(events):
 
     rows = []
     for device in DEVICES:
-        # each device gets its own slight baseline offset so devices aren't identical
+        # small baseline offset per device, so the devices aren't identical
         device_offset = {k: random.uniform(-3, 3) for k in SENSOR_TYPES}
         device_events = events_by_device.get(device, [])
 
@@ -126,34 +120,31 @@ def generate_readings(events):
                 unit = cfg["unit"]
                 timestamp_str = iso(ts)
 
-                # --- Issue 3: DEV-07 malformed timestamp format for soil_moisture rows ---
+                # DEV-07: soil_moisture rows use a different timestamp format
                 if device == "DEV-07" and sensor_type == "soil_moisture":
                     timestamp_str = ts.strftime("%d/%m/%Y %H:%M")  # different format, no seconds
 
-                # --- Issue 2: DEV-02's soil_temp unit field is mislabelled as "F" ---
-                # The VALUE is a normal Celsius reading; the UNIT COLUMN is wrong.
-                # This is what a literal unit-mismatch check is meant to catch:
-                # a declared unit that disagrees with the contract's expected unit
-                # for this sensor_type, independent of whether the number itself
-                # looks plausible.
+                # DEV-02: soil_temp is labelled "F" in the unit column. The values
+                # themselves are normal Celsius readings, only the label is wrong.
                 if device == "DEV-02" and sensor_type == "soil_temp":
                     unit = "F"
 
-                # --- Issue 6: DEV-06 soil_moisture sticks at one exact value for a long run ---
+                # DEV-06: soil_moisture gets stuck on one value for the second half
                 if device == "DEV-06" and sensor_type == "soil_moisture" and step >= N_STEPS // 2:
-                    value = 28.4  # exact stuck value, no noise
+                    value = 28.4  # no noise
 
-                # --- Issue 7: DEV-03 EC drifts smoothly upward over the back half of the window ---
+                # DEV-03: EC drifts upward through the second half. This also replaces
+                # any fertilizing bump on those rows.
                 if device == "DEV-03" and sensor_type == "ec" and step >= N_STEPS // 2:
                     progress = (step - N_STEPS // 2) / (N_STEPS // 2)
                     value = cfg["base"] + device_offset[sensor_type] + progress * 1400 + random.gauss(0, 20)
 
-                # --- Issue 4: DEV-04 has a clean 2-day gap (skip writing rows entirely) ---
+                # DEV-04: no rows at all for a 2-day stretch
                 if device == "DEV-04":
                     gap_start_step = N_STEPS // 3
                     gap_len_steps = (2 * 24 * 60) // INTERVAL_MIN
                     if gap_start_step <= step < gap_start_step + gap_len_steps:
-                        continue  # no row written -> a real gap, not a null
+                        continue  # no row at all, which is different from a null value
 
                 rows.append({
                     "device_id": device,
@@ -163,7 +154,7 @@ def generate_readings(events):
                     "unit": unit,
                 })
 
-    # --- Issue 5: DEV-05 impossible values + exact duplicate rows ---
+    # DEV-05: three impossible moisture readings, plus exact duplicates
     impossible_rows = []
     for step in [10, 25, 40]:
         ts = START + timedelta(minutes=INTERVAL_MIN * step)
@@ -172,7 +163,7 @@ def generate_readings(events):
             "value": -4.2, "unit": "%",
         })
     rows.extend(impossible_rows)
-    # exact duplicates of 3 legitimate DEV-05 rows, appended at the end (retransmission-style)
+    # three DEV-05 rows repeated at the end, like a retransmission
     dev05_rows = [r for r in rows if r["device_id"] == "DEV-05"][:3]
     rows.extend([dict(r) for r in dev05_rows])
 

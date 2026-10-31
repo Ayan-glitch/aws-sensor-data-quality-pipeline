@@ -21,7 +21,7 @@ def test_valid_rows_all_parse(tmp_path):
 
 def test_malformed_timestamp_is_quarantined_not_dropped(tmp_path):
     result = _ingest_from_rows(malformed_timestamp_rows(), tmp_path)
-    # exactly 1 bad row, 1 good row, NEITHER silently disappears
+    # one bad row and one good row, and neither is lost
     assert len(result["quarantined"]) == 1
     assert len(result["parsed"]) == 1
     assert result["quarantined"].iloc[0]["quarantine_reason"] == "unparseable_timestamp"
@@ -36,7 +36,7 @@ def test_fallback_format_parses_and_is_marked_corrected(tmp_path):
 
 def test_primary_format_is_not_marked_corrected(tmp_path):
     result = _ingest_from_rows(valid_rows(), tmp_path)
-    # the documented, primary format should NOT count as a correction
+    # the documented format shouldn't count as a correction
     assert (result["parsed"]["timestamp_format_corrected"] == False).all()  # noqa: E712
 
 
