@@ -103,6 +103,42 @@ def flag_flatline(df: pd.DataFrame, min_run_length: int = 20) -> pd.DataFrame:
     return df
 
 
+def flag_drift(df: pd.DataFrame, rules: dict = config.DRIFT_RULES) -> pd.DataFrame:
+    """
+    Adds flag_drift to rows on days when a sensor's readings have climbed a
+    long way and stayed up. For each sensor type in the rules, it takes the daily
+    median per device and compares each day with the day window_days earlier.
+    The device is flagged for that day if the rise is at least min_rise.
+
+    The daily median ignores short bumps. A day with no readings, or no
+    comparison day, can't be flagged. The flag is for review only. It can't say
+    whether the cause is a faulty sensor or something real like salt building up.
+    """
+    df = df.copy()
+    day = df["timestamp"].dt.normalize()
+    drifting = pd.Series(False, index=df.index).to_numpy()
+
+    for sensor_type, rule in rules.items():
+        subset = df[(df["sensor_type"] == sensor_type) & df["value"].notna()]
+        if subset.empty:
+            continue
+        daily = subset.groupby([day[subset.index], "device_id"])["value"].median().unstack("device_id")
+        daily = daily.reindex(pd.date_range(daily.index.min(), daily.index.max(), freq="D"))
+        rise = daily - daily.shift(rule["window_days"])
+
+        hits = rise.rename_axis("_day").reset_index().melt(
+            id_vars="_day", var_name="device_id", value_name="rise"
+        )
+        hits["is_drifting"] = hits["rise"] >= rule["min_rise"]
+        keys = pd.DataFrame({"_day": day, "device_id": df["device_id"]})
+        matched = keys.merge(hits[["_day", "device_id", "is_drifting"]], on=["_day", "device_id"], how="left")
+        in_this_type = (df["sensor_type"] == sensor_type).to_numpy()
+        drifting = drifting | (in_this_type & matched["is_drifting"].eq(True).to_numpy())
+
+    df["flag_drift"] = drifting
+    return df
+
+
 def find_missing_intervals(
     df: pd.DataFrame, expected_minutes: int = config.EXPECTED_INTERVAL_MINUTES
 ) -> pd.DataFrame:
@@ -140,6 +176,7 @@ def run_validation(df: pd.DataFrame) -> pd.DataFrame:
     df = flag_duplicates(df)
     df = flag_range_and_unit(df)
     df = flag_flatline(df)
+    df = flag_drift(df)
 
     flag_cols = [c for c in df.columns if c.startswith("flag_") or c.startswith("is_")]
     df["is_suspect"] = df[flag_cols].any(axis=1)

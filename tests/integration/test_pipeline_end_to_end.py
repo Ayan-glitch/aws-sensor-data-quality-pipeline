@@ -32,6 +32,7 @@ def test_full_pipeline_matches_known_injected_issues():
     assert flags["flag_flatline"] == 672                   # DEV-06
     assert flags["flag_missing_value"] == 3                 # DEV-01 blank humidity
     assert flags["flag_non_numeric_value"] == 2             # DEV-08 "ERR" in ec
+    assert flags["flag_drift"] == 576                       # DEV-03 ec, Jan 9 to Jan 14 (6 days x 96)
 
     # every record must be either quarantined or parsed
     assert report["original_record_count"] == (

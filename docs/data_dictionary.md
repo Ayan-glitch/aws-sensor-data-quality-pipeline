@@ -76,6 +76,32 @@ The table is written to `output/gold/missing_intervals.parquet`.
 | `event_type` | text | `watering` or `fertilizing`. |
 | `event_text` | text | A short note with only a few different wordings. |
 
+## Drift
+
+A drift is a climb that keeps going, unlike the short bump after fertilizing.
+`flag_drift` in `validate.py` takes each device's daily median EC and flags a day
+if it's at least 150 uS/cm above the median 3 days earlier. The settings are
+`DRIFT_RULES` in `config.py`. The median is used so a few hours of high readings
+don't count.
+
+How the numbers were picked: in the sample data the largest 3-day rise on a
+healthy device is about 52, and the drifting device rises about 600. Any
+threshold from 60 to 500 flags the same rows here, so 150 sits in the middle. A
+threshold of 40 starts flagging a healthy device.
+
+The flag is for review. A rise like this could be a faulty sensor or real salt
+building up, and the data can't say which. `DEV-03` also has a fertilizing event
+on Jan 10, inside the drift, so the two can't be told apart even in principle.
+
+Limits:
+- Only EC is checked.
+- It starts a day or two after the climb does. `DEV-03` starts drifting on Jan 8
+  and is flagged from Jan 9.
+- A day with no readings, or no comparison day, can't be flagged.
+- A lasting one-off jump would be flagged too.
+- In the generator the fertilizing bump is gone after 8 hours. In real soil it can
+  last longer, so on real data a flagged day might just be fertilizer.
+
 ## Problems added to the sample data
 
 | # | Device | Problem | Detected by the pipeline |
@@ -86,7 +112,7 @@ The table is written to `output/gold/missing_intervals.parquet`.
 | 4 | `DEV-05` | Impossible moisture values (below 0) | Yes |
 | 5 | `DEV-06` | `soil_moisture` stuck on one value | Yes |
 | 6 | `DEV-04` | 2-day gap with no rows | Yes, as 4 missing intervals (one per sensor type) of 192 readings each |
-| 7 | `DEV-03` | EC drifting upward over several days | Not yet |
+| 7 | `DEV-03` | EC drifting upward over several days | Yes, as `flag_drift` on 576 EC rows (Jan 9 to Jan 14) |
 | 8 | `DEV-01` | Humidity left blank for 3 readings | Yes, as `flag_missing_value` |
 | 9 | `DEV-08` | EC sent as the text `ERR` for 2 readings | Yes, as `flag_non_numeric_value` |
 

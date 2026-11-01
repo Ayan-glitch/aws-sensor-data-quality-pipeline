@@ -38,6 +38,16 @@ SENSOR_RULES = {
     "humidity": {"unit": "%", "hard_min": 0, "hard_max": 100, "typical_min": 20, "typical_max": 100},
 }
 
+# Drift check. A day is flagged if that device's daily median for the sensor
+# type is at least min_rise above its daily median window_days days earlier.
+# The daily median is used so a short bump (after fertilizing, for example)
+# doesn't count. These numbers are my own estimates. In the sample data the
+# healthy devices never rose more than about 55 over 3 days, and the drifting
+# one rises about 600.
+DRIFT_RULES = {
+    "ec": {"window_days": 3, "min_rise": 150},
+}
+
 # Key that identifies a reading. Two rows with the same key but different
 # values are flagged as a conflict. Only rows that match on every column in
 # FULL_ROW_MATCH_COLUMNS count as duplicates (see data_dictionary.md).

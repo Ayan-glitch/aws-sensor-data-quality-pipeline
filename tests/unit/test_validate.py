@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pandas as pd
 from sensor_pipeline import ingest, validate
 from sample_data import (
@@ -184,3 +186,82 @@ def test_blank_cell_read_from_a_csv_file_is_flagged_as_missing(tmp_path):
     parsed = ingest.ingest_readings(csv_path)["parsed"]
     result = validate.run_validation(parsed).sort_values("timestamp")
     assert list(result["flag_missing_value"]) == [False, True]
+
+
+def _daily_rows(daily_values, device="TEST-D", sensor_type="ec"):
+    """
+    Builds four readings per day, all at the given daily value. A None value
+    leaves that day out completely.
+    """
+    rows = []
+    for day, value in enumerate(daily_values):
+        if value is None:
+            continue
+        for hour in (0, 6, 12, 18):
+            rows.append({
+                "device_id": device,
+                "sensor_type": sensor_type,
+                "timestamp": pd.Timestamp("2026-01-01") + pd.Timedelta(timedelta(days=day, hours=hour)),
+                "value": float(value),
+            })
+    return pd.DataFrame(rows)
+
+
+def _flagged_days(result):
+    """The day numbers (0 is the first day) that have at least one drift flag."""
+    flagged = result[result["flag_drift"]]["timestamp"].dt.normalize().unique()
+    return sorted((pd.Timestamp(d) - pd.Timestamp("2026-01-01")).days for d in flagged)
+
+
+def test_steady_readings_are_not_flagged_as_drift():
+    result = validate.flag_drift(_daily_rows([750] * 7))
+    assert not result["flag_drift"].any()
+
+
+def test_a_steady_climb_is_flagged_as_drift():
+    # flat for three days, then up by 200 a day. The rule compares each day
+    # with the one 3 days earlier, so every climbing day is flagged.
+    result = validate.flag_drift(_daily_rows([750, 750, 750, 950, 1150, 1350, 1550]))
+    assert _flagged_days(result) == [3, 4, 5, 6]
+
+
+def test_a_short_bump_is_not_flagged_as_drift():
+    # one day 120 higher, like the effect of fertilizing, then back to normal
+    result = validate.flag_drift(_daily_rows([750, 750, 870, 750, 750, 750, 750]))
+    assert not result["flag_drift"].any()
+
+
+def test_drift_is_only_checked_for_the_sensor_types_in_the_rules():
+    # the same climb on soil_moisture isn't flagged, since only ec is in the rules
+    result = validate.flag_drift(_daily_rows([750, 750, 750, 950, 1150], sensor_type="soil_moisture"))
+    assert not result["flag_drift"].any()
+
+
+def test_only_the_drifting_device_is_flagged():
+    steady = _daily_rows([750] * 6, device="STEADY")
+    climbing = _daily_rows([750, 750, 750, 950, 1150, 1350], device="CLIMBING")
+    result = validate.flag_drift(pd.concat([steady, climbing], ignore_index=True))
+    assert set(result[result["flag_drift"]]["device_id"]) == {"CLIMBING"}
+
+
+def test_a_day_with_no_readings_means_that_comparison_is_skipped():
+    # day 1 has no readings, so day 4 has nothing to be compared against
+    result = validate.flag_drift(_daily_rows([750, None, 750, 750, 1500]))
+    assert 4 not in _flagged_days(result)
+
+
+def test_the_rule_settings_can_be_changed():
+    values = [750, 750, 750, 800, 850]  # a rise of 100 over 3 days
+    default = validate.flag_drift(_daily_rows(values))
+    assert not default["flag_drift"].any()
+    strict = validate.flag_drift(_daily_rows(values), {"ec": {"window_days": 3, "min_rise": 50}})
+    assert _flagged_days(strict) == [3, 4]
+
+
+def test_drift_flagged_rows_are_suspect():
+    df = _daily_rows([750, 750, 750, 950, 1150])
+    df["unit"] = "uS_cm"
+    result = validate.run_validation(df)
+    flagged = result[result["flag_drift"]]
+    assert len(flagged) > 0
+    assert flagged["is_suspect"].all()

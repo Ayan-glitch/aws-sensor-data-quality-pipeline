@@ -14,7 +14,7 @@ The README is updated as each phase is finished.
 | 0 | Planning and setup | Done |
 | 1 | Data contract and synthetic dataset | Done |
 | 2 | Ingestion, validation and transformation | Done |
-| 3 | Automated tests and CI | Done for the rules that exist (see Known gaps) |
+| 3 | Automated tests and CI | Done (see Known gaps for the limits) |
 | 4 | Local analytics with DuckDB | Not started |
 | 5 | Documentation and reproducibility check | Not started |
 | 6 | AWS design and cost review | Not started |
@@ -69,8 +69,9 @@ runs on every push.
 
 - **Missing intervals only cover gaps between readings.** A device that stops
   reporting for good, or starts late, isn't caught.
-- **The EC drift on `DEV-03` isn't flagged.** It stays inside the configured
-  normal range, so no rule picks it up.
+- **The drift flag only means "EC rose and stayed up".** It can't tell a faulty
+  sensor from real salt build-up, so flagged rows are for review. It only checks
+  EC, and it starts a day or two after the climb begins.
 
 ## Repository structure
 
