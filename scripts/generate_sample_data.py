@@ -146,11 +146,21 @@ def generate_readings(events):
                     if gap_start_step <= step < gap_start_step + gap_len_steps:
                         continue  # no row at all, which is different from a null value
 
+                out_value = round(value, 2)
+
+                # DEV-01: humidity is left blank for three readings
+                if device == "DEV-01" and sensor_type == "humidity" and 100 <= step < 103:
+                    out_value = ""
+
+                # DEV-08: ec comes through as text instead of a number for two readings
+                if device == "DEV-08" and sensor_type == "ec" and 200 <= step < 202:
+                    out_value = "ERR"
+
                 rows.append({
                     "device_id": device,
                     "timestamp": timestamp_str,
                     "sensor_type": sensor_type,
-                    "value": round(value, 2),
+                    "value": out_value,
                     "unit": unit,
                 })
 

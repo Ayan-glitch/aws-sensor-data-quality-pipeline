@@ -12,10 +12,17 @@ IDs, values and timestamps are all made up.
 | `device_id` | text | Looks like `DEV-01`. Part of the reading key. |
 | `timestamp` | text, parsed to datetime | Expected format is `YYYY-MM-DD HH:MM:SS`. One device sends a different format, to test the fallback parser. |
 | `sensor_type` | text | `soil_moisture`, `soil_temp`, `ec` or `humidity`. |
-| `value` | float | The unit depends on `sensor_type`. A null value is not handled yet (see the README). |
+| `value` | float | The unit depends on `sensor_type`. A blank cell is flagged as missing, and text that isn't a number is flagged as non-numeric. |
 | `unit` | text | Checked against the expected unit for the sensor type. A mismatch, such as `F` where `C` is expected, is a unit problem and not an invalid value. |
 | `source_file` | text | Added during ingestion. |
 | `ingested_at` | datetime | Added during ingestion. |
+
+**Missing and non-numeric values.** Both mean the row has no usable number, and
+both leave the value as NaN. They're flagged separately because they point to
+different causes: a blank cell suggests the sensor sent nothing, while text like
+`ERR` suggests it sent an error code. The row is kept either way, since its other
+columns may be fine. A missing value is different from a missing reading (see
+Missing intervals below), where the whole row is absent.
 
 **Reading key.** A reading is identified by `device_id`, `timestamp` and
 `sensor_type`. A row is only a duplicate if it also has the same value and unit
@@ -80,6 +87,8 @@ The table is written to `output/gold/missing_intervals.parquet`.
 | 5 | `DEV-06` | `soil_moisture` stuck on one value | Yes |
 | 6 | `DEV-04` | 2-day gap with no rows | Yes, as 4 missing intervals (one per sensor type) of 192 readings each |
 | 7 | `DEV-03` | EC drifting upward over several days | Not yet |
+| 8 | `DEV-01` | Humidity left blank for 3 readings | Yes, as `flag_missing_value` |
+| 9 | `DEV-08` | EC sent as the text `ERR` for 2 readings | Yes, as `flag_non_numeric_value` |
 
 Problem 7 shouldn't be corrected automatically when it is detected. It could be
 a real change or a faulty sensor, so it should only be flagged for review.

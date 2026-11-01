@@ -30,6 +30,8 @@ def test_full_pipeline_matches_known_injected_issues():
     assert flags["flag_unit_mismatch"] == 1344          # DEV-02
     assert flags["flag_hard_bound_violation"] == 3        # DEV-05
     assert flags["flag_flatline"] == 672                   # DEV-06
+    assert flags["flag_missing_value"] == 3                 # DEV-01 blank humidity
+    assert flags["flag_non_numeric_value"] == 2             # DEV-08 "ERR" in ec
 
     # every record must be either quarantined or parsed
     assert report["original_record_count"] == (

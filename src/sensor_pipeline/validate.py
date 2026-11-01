@@ -11,11 +11,19 @@ from . import config
 
 def cast_numeric(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Converts the value column from text to float. Anything that isn't a number
-    becomes NaN. NaN isn't flagged yet (see "Known gaps" in the README).
+    Converts the value column from text to float. A value with no usable number
+    becomes NaN, and the row gets one of two flags so it isn't passed over:
+      flag_missing_value: the cell was blank or null
+      flag_non_numeric_value: the cell had text that isn't a number, like "ERR"
+    The row is kept, since its other columns may still be fine.
     """
     df = df.copy()
-    df["value"] = pd.to_numeric(df["value"], errors="coerce")
+    as_text = df["value"].astype(str).str.strip()
+    is_blank = (df["value"].isna() | as_text.eq("")).astype(bool)
+    numeric = pd.to_numeric(df["value"], errors="coerce")
+    df["flag_missing_value"] = is_blank
+    df["flag_non_numeric_value"] = numeric.isna() & ~is_blank
+    df["value"] = numeric
     return df
 
 

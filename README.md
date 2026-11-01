@@ -71,8 +71,6 @@ runs on every push.
   reporting for good, or starts late, isn't caught.
 - **The EC drift on `DEV-03` isn't flagged.** It stays inside the configured
   normal range, so no rule picks it up.
-- **Null readings aren't flagged.** A value that isn't a number becomes NaN and
-  passes every range check.
 
 ## Repository structure
 

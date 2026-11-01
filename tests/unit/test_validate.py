@@ -1,5 +1,5 @@
 import pandas as pd
-from sensor_pipeline import validate
+from sensor_pipeline import ingest, validate
 from sample_data import (
     make_raw_readings_df, exact_duplicate_rows, key_conflict_rows,
     unit_mismatch_rows, hard_bound_violation_rows, flatline_rows, short_run_rows,
@@ -127,3 +127,60 @@ def test_the_interval_can_be_changed():
     # with a 30 minute interval, readings 30 minutes apart are on schedule
     df = _readings_at(["2026-01-01 00:00", "2026-01-01 00:30", "2026-01-01 01:00"])
     assert len(validate.find_missing_intervals(df, expected_minutes=30)) == 0
+
+
+def _cast(values):
+    return validate.cast_numeric(pd.DataFrame({"value": values}))
+
+
+def test_a_valid_number_is_not_flagged():
+    result = _cast(["35.2"])
+    assert result["value"].iloc[0] == 35.2
+    assert not result["flag_missing_value"].iloc[0]
+    assert not result["flag_non_numeric_value"].iloc[0]
+
+
+def test_blank_text_is_flagged_as_missing():
+    result = _cast(["", "   "])
+    assert result["flag_missing_value"].all()
+    assert not result["flag_non_numeric_value"].any()
+
+
+def test_nan_is_flagged_as_missing():
+    result = _cast([float("nan")])
+    assert result["flag_missing_value"].iloc[0]
+    assert not result["flag_non_numeric_value"].iloc[0]
+
+
+def test_text_that_is_not_a_number_is_flagged_as_non_numeric():
+    result = _cast(["ERR"])
+    assert result["flag_non_numeric_value"].iloc[0]
+    assert not result["flag_missing_value"].iloc[0]
+    assert pd.isna(result["value"].iloc[0])
+
+
+def test_a_row_is_never_both_missing_and_non_numeric():
+    result = _cast(["35.2", "", "ERR", float("nan"), "40"])
+    assert not (result["flag_missing_value"] & result["flag_non_numeric_value"]).any()
+    assert result["flag_missing_value"].sum() == 2
+    assert result["flag_non_numeric_value"].sum() == 1
+
+
+def test_a_missing_value_makes_the_row_suspect():
+    rows = [{"device_id": "TEST-N", "timestamp": "2026-01-01 00:00:00",
+             "sensor_type": "soil_moisture", "value": "", "unit": "%"}]
+    result = _validated_from_rows(rows)
+    assert result["is_suspect"].iloc[0]
+
+
+def test_blank_cell_read_from_a_csv_file_is_flagged_as_missing(tmp_path):
+    # pandas turns an empty CSV cell into NaN, which is different from an empty string
+    csv_path = tmp_path / "with_blank.csv"
+    csv_path.write_text(
+        "device_id,timestamp,sensor_type,value,unit\n"
+        "TEST-N,2026-01-01 00:00:00,soil_moisture,35.0,%\n"
+        "TEST-N,2026-01-01 00:15:00,soil_moisture,,%\n"
+    )
+    parsed = ingest.ingest_readings(csv_path)["parsed"]
+    result = validate.run_validation(parsed).sort_values("timestamp")
+    assert list(result["flag_missing_value"]) == [False, True]
