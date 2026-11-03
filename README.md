@@ -6,7 +6,8 @@ written in Python. It runs fully on a laptop. There is also a planned AWS versio
 
 ## Status
 
-Phases 0 to 3 are done. The pipeline runs end to end and has 24 passing tests.
+Phases 0 to 4 are done. The pipeline runs end to end, has unit and integration
+tests, and the results can be queried with SQL.
 The README is updated as each phase is finished.
 
 | Phase | What it covers | Status |
@@ -15,7 +16,7 @@ The README is updated as each phase is finished.
 | 1 | Data contract and synthetic dataset | Done |
 | 2 | Ingestion, validation and transformation | Done |
 | 3 | Automated tests and CI | Done (see Known gaps for the limits) |
-| 4 | Local analytics with DuckDB | Not started |
+| 4 | Local analytics with DuckDB | Done |
 | 5 | Documentation and reproducibility check | Not started |
 | 6 | AWS design and cost review | Not started |
 | 7 | AWS deployment (optional) | Not started |
@@ -54,8 +55,11 @@ python scripts/generate_sample_data.py
 # 3. Run the pipeline: ingest, validate, transform, write bronze/silver/gold
 python scripts/run_local_pipeline.py
 
-# 4. Run the tests (24 tests: unit and end-to-end)
+# 4. Run the tests (unit and end-to-end)
 pytest -v
+
+# 5. Run the SQL queries on the pipeline output (needs step 3 first)
+python scripts/run_analytics.py
 ```
 
 Step 3 prints a report with the number of records read, quarantined, corrected,
@@ -64,6 +68,27 @@ also writes Parquet files to `output/bronze/`, `output/silver/` and
 `output/gold/`. The tests have been run on Windows and on
 GitHub Actions (Linux). The workflow is in `.github/workflows/tests.yml` and
 runs on every push.
+
+## Analytics
+
+`scripts/run_analytics.py` runs the queries in `sql/analytics_queries.sql` with
+DuckDB, reading the Parquet files the pipeline wrote to `output/`. Run the pipeline
+first.
+
+| Query | Question |
+|---|---|
+| `missing_by_device` | Which devices have the most missing readings? |
+| `device_overview` | How do the devices compare on suspect and missing readings? |
+| `worst_device_days` | Which device-days have the highest share of suspect readings? |
+| `flags_by_device_sensor` | Which sensors show repeated or drifting readings? |
+| `rule_counts` | How many readings does each validation rule flag? |
+| `event_response_overall` | Do moisture and EC change after watering and fertilizing events? |
+| `event_response_by_device` | How does the response to events differ between devices? |
+
+The event response is a plain before/after average. On this data it shows EC
+rising after fertilizing every time, and soil moisture rising after about 61% of
+waterings. The moisture effect is small compared to the noise, so the result is
+weak (see "Event response" in `docs/data_dictionary.md`).
 
 ## Known gaps
 
@@ -80,14 +105,14 @@ data/sample/          synthetic input data (committed)
 data/local/           working output (git-ignored)
 data/quarantine/      rejected records (git-ignored)
 docs/                 data dictionary
-scripts/              generate_sample_data.py, run_local_pipeline.py
+scripts/              generate_sample_data.py, run_local_pipeline.py, run_analytics.py
+sql/                  analytics queries
 src/sensor_pipeline/  pipeline code
 tests/                unit and integration tests
 .github/workflows/    CI: installs dependencies, generates data, runs pytest
 ```
 
-Planned for later phases: `sql/` for the DuckDB queries and `aws/` for the AWS
-version.
+Planned for later phases: `aws/` for the AWS version.
 
 ## Documentation
 

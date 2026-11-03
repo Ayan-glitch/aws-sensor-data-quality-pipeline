@@ -9,6 +9,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 RAW_DATA_DIR = REPO_ROOT / "data" / "sample"
+OUTPUT_DIR = REPO_ROOT / "output"
+ANALYTICS_QUERIES = REPO_ROOT / "sql" / "analytics_queries.sql"
 LOCAL_OUTPUT_DIR = REPO_ROOT / "data" / "local"
 QUARANTINE_DIR = REPO_ROOT / "data" / "quarantine"
 
