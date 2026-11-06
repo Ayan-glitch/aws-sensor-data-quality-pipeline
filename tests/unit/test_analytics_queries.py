@@ -8,7 +8,7 @@ from sensor_pipeline import analytics
 EXPECTED_QUERIES = [
     "missing_by_device",
     "device_overview",
-    "worst_device_days",
+    "worst_day_per_device",
     "flags_by_device_sensor",
     "rule_counts",
     "event_response_overall",
@@ -25,6 +25,11 @@ def test_every_query_has_a_question_and_sql():
     for query in analytics.load_queries():
         assert query["question"], query["name"]
         assert query["sql"].upper().startswith("SELECT"), query["name"]
+
+
+def test_comment_lines_are_not_part_of_the_sql():
+    for query in analytics.load_queries():
+        assert "--" not in query["sql"], query["name"]
 
 
 def test_the_trailing_semicolon_is_removed():

@@ -38,16 +38,15 @@ LEFT JOIN (
 ) m ON q.device_id = m.device_id
 ORDER BY suspect_rate DESC, q.device_id;
 
--- name: worst_device_days
--- question: Which device-days have the highest share of suspect readings?
+-- name: worst_day_per_device
+-- question: What is each device's worst day, and on how many days did it have suspect readings?
 SELECT device_id,
-       "date",
-       total_readings,
-       suspect_readings,
-       ROUND(CAST(suspect_readings AS DOUBLE) / total_readings, 3) AS suspect_rate
+       COUNT(*) AS days,
+       CAST(SUM(CASE WHEN suspect_readings > 0 THEN 1 ELSE 0 END) AS BIGINT) AS days_with_suspect,
+       ROUND(MAX(CAST(suspect_readings AS DOUBLE) / total_readings), 3) AS worst_day_rate
 FROM device_daily_quality
-ORDER BY suspect_rate DESC, device_id, "date"
-LIMIT 10;
+GROUP BY device_id
+ORDER BY worst_day_rate DESC, days_with_suspect DESC, device_id;
 
 -- name: flags_by_device_sensor
 -- question: Which sensors show repeated or drifting readings?
@@ -92,7 +91,7 @@ GROUP BY event_type, sensor_type
 ORDER BY event_type;
 
 -- name: event_response_by_device
--- question: How does the response to events differ between devices?
+-- question: How does the response differ between devices? Each device has only a few events, so treat this as rough.
 SELECT device_id,
        event_type,
        COUNT(*) AS events_with_data,

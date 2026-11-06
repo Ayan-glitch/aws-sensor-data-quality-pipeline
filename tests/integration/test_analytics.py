@@ -60,11 +60,16 @@ def test_device_overview_ranks_devices_by_suspect_rate():
     assert overview.loc[overview.index != "DEV-04", "missing_readings"].sum() == 0
 
 
-def test_worst_device_days_are_sorted_and_limited_to_ten():
-    worst = _results()["worst_device_days"]
-    assert len(worst) == 10
-    assert worst["suspect_rate"].is_monotonic_decreasing
-    assert round(float(worst["suspect_rate"].iloc[0]), 3) == 0.25
+def test_worst_day_per_device_has_one_row_per_device():
+    worst = _results()["worst_day_per_device"].set_index("device_id")
+    assert len(worst) == 8
+    assert worst["worst_day_rate"].is_monotonic_decreasing
+    # every device with a problem shows up, not only the first one alphabetically
+    assert {"DEV-02", "DEV-03", "DEV-06"} <= set(worst.index[:3])
+    assert worst.loc["DEV-02", "days_with_suspect"] == 14
+    assert worst.loc["DEV-03", "days_with_suspect"] == 6   # Jan 9 to Jan 14
+    assert worst.loc["DEV-06", "days_with_suspect"] == 7   # second half of the window
+    assert worst.loc["DEV-04", "days_with_suspect"] == 0
 
 
 def test_flatline_and_drift_are_found_on_the_right_sensors():

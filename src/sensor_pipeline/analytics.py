@@ -32,6 +32,8 @@ def load_queries(sql_path: Path = config.ANALYTICS_QUERIES) -> list[dict]:
             continue  # header comments before the first query
         elif line.startswith("-- question:"):
             current["question"] = line[len("-- question:"):].strip()
+        elif line.lstrip().startswith("--"):
+            continue  # any other comment line
         elif line.strip():
             current["lines"].append(line)
 

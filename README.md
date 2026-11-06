@@ -1,14 +1,16 @@
 # aws-sensor-data-quality-pipeline
 
+![Tests](https://github.com/Ayan-glitch/aws-sensor-data-quality-pipeline/actions/workflows/tests.yml/badge.svg)
+
 A pipeline for ingesting, validating and cleaning IoT sensor time-series data,
 written in Python. It runs fully on a laptop. There is also a planned AWS version
 (S3, Glue and Athena), which hasn't been built yet.
 
 ## Status
 
-Phases 0 to 4 are done. The pipeline runs end to end, has unit and integration
-tests, and the results can be queried with SQL.
-The README is updated as each phase is finished.
+Phases 0 to 5 are done. The pipeline runs end to end, has unit and integration
+tests, and the results can be queried with SQL. The README is updated as each
+phase is finished.
 
 | Phase | What it covers | Status |
 |---|---|---|
@@ -17,7 +19,7 @@ The README is updated as each phase is finished.
 | 2 | Ingestion, validation and transformation | Done |
 | 3 | Automated tests and CI | Done (see Known gaps for the limits) |
 | 4 | Local analytics with DuckDB | Done |
-| 5 | Documentation and reproducibility check | Not started |
+| 5 | Documentation and reproducibility check | Done |
 | 6 | AWS design and cost review | Not started |
 | 7 | AWS deployment (optional) | Not started |
 
@@ -42,14 +44,17 @@ checked against a known list of issues (see `docs/data_dictionary.md`).
 
 ## Quick start
 
+Needs Python 3.11 or newer. It has been run on Python 3.13.
+
 ```bash
 # 1. Clone and set up
 git clone https://github.com/Ayan-glitch/aws-sensor-data-quality-pipeline.git
 cd aws-sensor-data-quality-pipeline
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate     # on Windows (PowerShell): .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-# 2. Generate the sample data (same output every time)
+# 2. Generate the sample data (same output every time; the repo already includes it)
 python scripts/generate_sample_data.py
 
 # 3. Run the pipeline: ingest, validate, transform, write bronze/silver/gold
@@ -104,7 +109,7 @@ weak (see "Event response" in `docs/data_dictionary.md`).
 data/sample/          synthetic input data (committed)
 data/local/           working output (git-ignored)
 data/quarantine/      rejected records (git-ignored)
-docs/                 data dictionary
+docs/                 documentation
 scripts/              generate_sample_data.py, run_local_pipeline.py, run_analytics.py
 sql/                  analytics queries
 src/sensor_pipeline/  pipeline code
@@ -116,11 +121,16 @@ Planned for later phases: `aws/` for the AWS version.
 
 ## Documentation
 
+- [`docs/architecture.md`](docs/architecture.md) shows how the data flows and
+  what each layer holds.
+- [`docs/data_quality_rules.md`](docs/data_quality_rules.md) lists every rule,
+  its threshold and its limits.
 - [`docs/data_dictionary.md`](docs/data_dictionary.md) covers the columns, the
   duplicate rule, the validation ranges and the problems added to the sample
   data.
-- Documents for the architecture, costs and cleanup will be added in the phases
-  they belong to.
+- [`docs/design_decisions.md`](docs/design_decisions.md) explains why things are
+  done the way they are.
+- Documents for costs and cleanup will be added with the AWS phase.
 
 ## AWS costs
 
